@@ -1,0 +1,98 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+here::i_am("Scripts/Rmd_Scripts/get_topographic_wetness.Rmd")
+
+library(tidyverse)
+library(terra)
+#library(ncdf4)
+library(sgo)
+library(sf)
+library(here)
+```
+```{r}
+#global raster for topographic wetness index
+(
+  wet <- rast(here("./Data/Input_Data/ga2.nc"))
+)
+names(wet)
+
+
+#load polygon to use to crop global input data
+gb <- readRDS(here("./Data/GB_Polygon_Data/gb_multipolygon.rds"))
+
+str(gb, max.level = 1)
+
+crs(gb)
+
+```
+## Crop wetness data
+```{r}
+#First transform shapefile to crs of wetness input data
+
+#check if desired transformation is possible
+
+st_can_transform(gb, 4326)
+
+# do transformation
+gb.WGS84 <- st_transform(gb, 4326)
+
+# crop
+wet.gb <- crop(wet, gb.WGS84)
+
+# check
+plot(wet.gb)
+
+```
+```{r}
+wet.gb
+```
+
+
+## Reproject wetness data
+```{r}
+wet.gb.crs <- project(wet.gb, "EPSG:27700")
+
+wet.gb.crs
+
+plot(wet.gb.crs)
+```
+## function to add ngr
+```{r}
+
+
+add.ngr<- function(data){
+ points <- sgo_points(data, coords = c("x", "y"), epsg=27700)
+points2 <- sgo_bng_ngr(points, digits = 4)
+data <- data %>%
+  mutate(ngr.1km = points2$ngr) %>%
+  mutate(ngr.1km =  str_replace_all(ngr.1km, " ", ""))
+  return(data)
+}
+```
+
+
+#get dataframe with  grid cell references 
+```{r}
+
+# get data frame from SpatRaster
+wet.df <- as.data.frame(wet.gb.crs, xy = TRUE)
+
+wet.df <- add.ngr(wet.df)
+
+
+```
+
+
+## Write processed data
+```{r}
+write_rds(wet.df, file = here("./Data/Processed_Data/topographic_wetness_df.rds"))
+
+f <- file.path(here(), "Data/Processed_Data/topographic_wetness.tif")
+
+writeRaster(wet.gb.crs, f, overwrite=TRUE, gdal=c("COMPRESS=NONE", "TFW=YES"), datatype='INT8S')
+
+```
