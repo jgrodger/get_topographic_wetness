@@ -20,6 +20,9 @@ library(here)
 )
 names(wet)
 
+(
+trees.1km <- rast(here("./Data/Input_Data/trees_1km.tif"))
+)
 
 #load polygon to use to crop global input data
 gb <- readRDS(here("./Data/GB_Polygon_Data/gb_multipolygon.rds"))
@@ -60,6 +63,18 @@ wet.gb.crs
 
 plot(wet.gb.crs)
 ```
+## resample wetness
+
+```{r}
+# because the wetness data is in odd cell sizes, I use resample with the "bilinear approach to interpolation
+# https://gisgeography.com/raster-resampling/
+# This takes the weighted average of the four cells of the old raster with corners closest to the cell in the new raster, weighting based on distance
+(wet.gb.final <- resample(wet.gb.crs, trees.1km, method = "bilinear"))
+plot(wet.gb.final)
+
+```
+
+
 ## function to add ngr
 ```{r}
 
@@ -79,7 +94,7 @@ data <- data %>%
 ```{r}
 
 # get data frame from SpatRaster
-wet.df <- as.data.frame(wet.gb.crs, xy = TRUE)
+wet.df <- as.data.frame(wet.gb.final, xy = TRUE)
 
 wet.df <- add.ngr(wet.df)
 
@@ -93,6 +108,31 @@ write_rds(wet.df, file = here("./Data/Processed_Data/topographic_wetness_df.rds"
 
 f <- file.path(here(), "Data/Processed_Data/topographic_wetness.tif")
 
-writeRaster(wet.gb.crs, f, overwrite=TRUE, gdal=c("COMPRESS=NONE", "TFW=YES"), datatype='INT8S')
+writeRaster(wet.gb.final, f, overwrite=TRUE, gdal=c("COMPRESS=NONE", "TFW=YES"), datatype='INT8S')
 
 ```
+
+
+
+```{r}
+(
+wet.gb.crs <- rast(here("Data/Processed_Data/topographic_wetness.tif"))
+)
+
+names(wet.gb.crs)
+crs(wet.gb.crs)
+
+```
+
+```{r}
+plot(wet.gb.crs)
+```
+```{r}
+wet.df <- as.data.frame(wet.gb.crs, xy = TRUE)
+
+
+wet.df <- add.ngr(wet.df)
+
+
+```
+
